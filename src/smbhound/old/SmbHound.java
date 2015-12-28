@@ -1,4 +1,4 @@
-package smbhound;
+package smbhound.old;
 
 import java.io.File;
 import java.io.FileNotFoundException;
